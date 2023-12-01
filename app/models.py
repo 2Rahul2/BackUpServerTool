@@ -10,7 +10,7 @@ class FolderFiles(models.Model):
     subBranchId = models.IntegerField()
 
     def __str__(self):
-        return str(self.id)
+        return str(self.name)
 
 class SubFolder(models.Model):
     name = models.CharField(max_length=500)

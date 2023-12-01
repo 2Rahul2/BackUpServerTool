@@ -22,6 +22,60 @@ from .models import *
 from django.contrib.auth import authenticate
 
 from django.middleware.csrf import get_token
+
+
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.authentication import SessionAuthentication, TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+
+
+
+from django.shortcuts import get_object_or_404
+from django.contrib.auth.models import User
+from rest_framework.authtoken.models import Token
+
+
+
+from .serializers import UserSerializer
+@api_view(['POST'])
+def signupTest(request):
+    print("here")
+    print(request)
+    userserializer = UserSerializer(data = request.data)
+    print("huhuhhu")
+    if userserializer.is_valid():
+        if User.objects.filter(username=request.data['username']).exists() or User.objects.filter(email=request.data['email']).exists():
+            return Response({"status":"exist"} ,status=status.HTTP_400_BAD_REQUEST)
+        userserializer.save()
+        user = User.objects.get(username=request.data['username'])
+        user.set_password(request.data['password'])
+        user.save()
+        token = Token.objects.create(user=user)
+        return Response({'token':token.key ,'user':userserializer.data ,'status':'created'} , status=status.HTTP_200_OK)
+    print("printing after valid statement here")
+    return Response({"status":"error" ,"error":userserializer.errors}  ,status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+# @authentication_classes([TokenAuthentication])
+# @permission_classes([IsAuthenticated])
+def loginApi(request):
+    user = get_object_or_404(User ,username = request.data['username'])
+    if not user.check_password(request.data['password']):
+        return Response({"detail":"Not found."} ,status=status.HTTP_404_NOT_FOUND)
+    token , created = Token.objects.get_or_create(user=user)
+    serializer = UserSerializer(user)
+    return Response({"detail":"yes","token":token.key ,"user":serializer.data})
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def test_token(request):
+    received_token = request.headers.get('Authorization')
+    print("Received Token:", received_token)
+    return Response("passed!")
+
 @api_view(['GET'])
 def getToken(request):
     csrf_token = get_token(request)
@@ -68,8 +122,21 @@ def makeDictFiles():
 
     print(json.dumps(folder_structure, indent=4))
 
-
 @csrf_exempt
+def get_csrf_token(request):
+    token = get_token(request)
+    print("Token:  " ,token)
+    return HttpResponse(str(token))
+@api_view(['GET'])
+def checkConnection(request):
+    if request.method == 'GET':
+        # token = get_token(request)
+        # print("token :",token)
+        return Response(status=status.HTTP_200_OK)
+# @csrf_exempt
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
 def getZipFiles(request):
     def traverseFolder(files ,parentFolder ,parentFolderModelObject , rootId):
         for file in files:
@@ -95,6 +162,10 @@ def getZipFiles(request):
                 # for f in file.iterdir():
                   
             else:
+                try:
+                    print("SIZE:::  ",f.stat().st_size)
+                except:
+                    pass
                 if parentFolder == MainParentName:
                     MainBranchObject = MainBranch.objects.get(id=parentFolderModelObject.id)
                     fileObject = FolderFiles.objects.create(name=file.name , file=file.read_bytes() ,subBranchId = MainBranchObject.id)
@@ -109,14 +180,14 @@ def getZipFiles(request):
                     subFolderObject.save()
                 print(file.name ,"-FILE")
 
-    if request.method == 'GET':
-        return HttpResponse("server is online")
+    
 
     if request.method == 'POST':
+        # print(get_csrf_token(request))
         # print(request.POST)
         # print(request.FILES['name'])
-        print(request.POST)
-        print(request.FILES)
+        # print(request.POST)
+        # print(request.FILES)
         # print(request.data)
         zip_file = request.FILES["file"]
         # zip_file = None
@@ -140,17 +211,27 @@ def getZipFiles(request):
                 temp_path = Path(tempDir)
                 for f in temp_path.iterdir():
                     if f.is_dir():
-                        print(f.iterdir())
+                        try:
+                            # Open the file and read its content to BytesIO
+                            with open(f, 'rb') as file:
+                                file_content = io.BytesIO(file.read())
+                            
+                            # Get the size of the file content
+                            file_size = file_content.getbuffer().nbytes
+                            print(f"File: {f.name}, Size: {file_size} bytes")
+                        except PermissionError as e:
+                            print(f"PermissionError: {e}")
+                        # print(f.iterdir())
                         MainParentName = f.name
-                        user = User.objects.get(username="rahul")
+                        user = User.objects.get(username=request.data['username'])
                         mainFolderObject = MainBranch.objects.create(name=f.name ,user=user)
                         mainFolderObject.save()
                         traverseFolder(f.iterdir() , f.name ,mainFolderObject , mainFolderObject.id)
-            return HttpResponse("saved in server!")
+            return Response({"saved":"okay"} ,status=status.HTTP_200_OK)
         else:
             print("no file uploaded")
-            return HttpResponse("not saved in server!lol!")
-
+            return Response({"saved":"no"} , status=status.HTTP_400_BAD_REQUEST)
+    return Response("None")
 
 
 def sendJson(request):
@@ -321,7 +402,11 @@ def home(request):
 
 
     return render(request ,'app/index.html')
-@csrf_exempt
+
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
 def getData(request):
     
     def create_folder_structure(folderModel ,parent_folder_path):
@@ -340,17 +425,18 @@ def getData(request):
         # print(current_folder_path)
 
     def populate_folder_dir(temp_dir_path ,branchType ,fileType ,id):
-        root_folder_path = os.path.join(temp_dir_path ,'filetosentNew')
-        os.makedirs(root_folder_path)
+        # root_folder_path = os.path.join(temp_dir_path ,'filetosentNew')
+        # os.makedirs(root_folder_path)
+        # os.makedirs(temp_dir_path)
         if branchType == "mainBranch":
             for folderModel in MainBranch.objects.filter(id=id):
-                create_folder_structure(folderModel , root_folder_path)
+                create_folder_structure(folderModel , temp_dir_path)
         elif branchType == "subBranch":
             for folderModel in SubFolder.objects.filter(id=id):
-                create_folder_structure(folderModel ,root_folder_path)
+                create_folder_structure(folderModel ,temp_dir_path)
         elif branchType == "file":
             file = FolderFiles.objects.get(id=id)
-            filePath = os.path.join(root_folder_path ,file.name)
+            filePath = os.path.join(temp_dir_path ,file.name)
             os.makedirs(filePath)
             fileWritePath = os.path.join(filePath ,file.name)
             with open(fileWritePath ,"wb") as f:
@@ -366,33 +452,38 @@ def getData(request):
                 with open(file_path , 'rb') as file:
                     yield FileWrapper(file)
 
-    if request.method == "GET":
-        pass
+    # if request.method == "GET":
+    #     pass
     if request.method == "POST":
-        userName = "rahul"
-        branchType = request.POST["branchType"]
-        fileType = request.POST["file"]
-        id = int(request.POST["id"])
-        get_temp_dir = tempfile.TemporaryDirectory()
-        populate_folder_dir(get_temp_dir.name ,branchType ,fileType ,id)
-        # response = HttpResponse(FileWrapper(open(get_temp_dir.name)) ,content_type = 'application/octet-stream')
-        # print("heree??")
+        username = request.POST['username']
+        # password = request.POST['password']
 
-        zip_filename = get_temp_dir.name + '.zip'
-        shutil.make_archive(get_temp_dir.name, 'zip', get_temp_dir.name)
+        if User.objects.filter(username=username).exists():
+            branchType = request.POST["branchType"]
+            fileType = request.POST["file"]
+            id = int(request.POST["id"])
+            get_temp_dir = tempfile.TemporaryDirectory()
+            populate_folder_dir(get_temp_dir.name ,branchType ,fileType ,id)
+            # response = HttpResponse(FileWrapper(open(get_temp_dir.name)) ,content_type = 'application/octet-stream')
+            # print("heree??")
 
-        # Open and read the saved zip file
-        with open(zip_filename, 'rb') as zip_file:
-            response = HttpResponse(zip_file.read(), content_type='application/zip')
-        # response = StreamingHttpResponse(file_iter(os.path.join(get_temp_dir.name ,'filetosentNew')) ,content_type = 'application/octet-stream')
-        # print("or here?")
-        response['Content-Disposition'] = f'attachment; filename="your_folder_name.zip"'
-        # def GetFiles():
+            zip_filename = get_temp_dir.name + '.zip'
+            shutil.make_archive(get_temp_dir.name, 'zip', get_temp_dir.name)
 
-        get_temp_dir.cleanup()
-        os.remove(zip_filename)
-
+            # Open and read the saved zip file
+            with open(zip_filename, 'rb') as zip_file:
+                response = HttpResponse(zip_file.read(), content_type='application/zip')
+            # response = StreamingHttpResponse(file_iter(os.path.join(get_temp_dir.name ,'filetosentNew')) ,content_type = 'application/octet-stream')
+            # print("or here?")
+            response['Content-Disposition'] = f'attachment; filename="your_folder_name.zip"'
+            # def GetFiles():
+            response['Status'] = "Yes"
+            get_temp_dir.cleanup()
+            os.remove(zip_filename)            
+            return response
         
+        response = HttpResponse()
+        response['Status'] = "No"
         return response
     
 @csrf_exempt
