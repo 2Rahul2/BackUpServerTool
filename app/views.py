@@ -36,46 +36,54 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
 
-
+from django.utils import timezone
+import pytz
 
 from .serializers import UserSerializer
 @api_view(['POST'])
 def signupTest(request):
-    print("here")
-    print(request)
-    userserializer = UserSerializer(data = request.data)
-    print("huhuhhu")
-    if userserializer.is_valid():
-        if User.objects.filter(username=request.data['username']).exists() or User.objects.filter(email=request.data['email']).exists():
-            return Response({"status":"exist"} ,status=status.HTTP_400_BAD_REQUEST)
-        userserializer.save()
-        user = User.objects.get(username=request.data['username'])
-        user.set_password(request.data['password'])
-        user.save()
-        token = Token.objects.create(user=user)
-        return Response({'token':token.key ,'user':userserializer.data ,'status':'created'} , status=status.HTTP_200_OK)
-    print("printing after valid statement here")
-    return Response({"status":"error" ,"error":userserializer.errors}  ,status=status.HTTP_400_BAD_REQUEST)
+    try:
+        print("here")
+        print(request)
+        userserializer = UserSerializer(data = request.data)
+        print("huhuhhu")
+        if userserializer.is_valid():
+            if User.objects.filter(username=request.data['username']).exists() or User.objects.filter(email=request.data['email']).exists():
+                return Response({"status":"exist"} ,status=status.HTTP_400_BAD_REQUEST)
+            userserializer.save()
+            user = User.objects.get(username=request.data['username'])
+            user.set_password(request.data['password'])
+            user.save()
+            token = Token.objects.create(user=user)
+            return Response({'token':token.key ,'user':userserializer.data ,'status':'created'} , status=status.HTTP_200_OK)
+        print("printing after valid statement here")
+        return Response({"status":"error" ,"error":userserializer.errors}  ,status=status.HTTP_400_BAD_REQUEST)
+    except:
+        return Response({"status":"error"})
 
 @api_view(['POST'])
 # @authentication_classes([TokenAuthentication])
 # @permission_classes([IsAuthenticated])
 def loginApi(request):
-    user = get_object_or_404(User ,username = request.data['username'])
-    if not user.check_password(request.data['password']):
-        return Response({"detail":"Not found."} ,status=status.HTTP_404_NOT_FOUND)
-    token , created = Token.objects.get_or_create(user=user)
-    serializer = UserSerializer(user)
-    return Response({"detail":"yes","token":token.key ,"user":serializer.data})
-
+    try:
+        user = get_object_or_404(User ,username = request.data['username'])
+        if not user.check_password(request.data['password']):
+            return Response({"detail":"Not found."} ,status=status.HTTP_404_NOT_FOUND)
+        token , created = Token.objects.get_or_create(user=user)
+        serializer = UserSerializer(user)
+        return Response({"detail":"yes","token":token.key ,"user":serializer.data})
+    except:
+        return Response({"detail":"Not found"} ,status=status.HTTP_404_NOT_FOUND)
 @api_view(['GET'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def test_token(request):
-    received_token = request.headers.get('Authorization')
-    print("Received Token:", received_token)
-    return Response("passed!")
-
+    try:
+        received_token = request.headers.get('Authorization')
+        print("Received Token:", received_token)
+        return Response("passed!")
+    except:
+        return Resposne({"status":"error"})
 @api_view(['GET'])
 def getToken(request):
     csrf_token = get_token(request)
@@ -138,100 +146,124 @@ def checkConnection(request):
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def getZipFiles(request):
-    def traverseFolder(files ,parentFolder ,parentFolderModelObject , rootId):
-        for file in files:
-            if file.is_dir():
-                subFolderObject = SubFolder.objects.create(name=file.name , mainBranchId = rootId ,SecondaryBranchId = parentFolderModelObject.id)
-                if MainParentName != parentFolder:
-                    print(parentFolder ,"--------" ,file.name)
-                    getSubFolderObject = SubFolder.objects.get(id=parentFolderModelObject.id)
-                    # getSubFolderObject.subFolder = subFolderObject
-                    getSubFolderObject.subFolder.add(subFolderObject)
-                    print(getSubFolderObject.name ,'====' ,subFolderObject.name)
-                    getSubFolderObject.save()
-                elif MainParentName == parentFolder:
-                    getMainBranchFolderObject = MainBranch.objects.get(id=parentFolderModelObject.id)
-                    getMainBranchFolderObject.subFolder.add(subFolderObject)
-                    print(getMainBranchFolderObject.name ,"~~~~~~~~~~" ,subFolderObject.name)
-                    getMainBranchFolderObject.save()
-                # parentFolderModelObject.subFolder.add(subFolderObject)
-                # parentFolderModelObject.save()
-                subFolderObject.save()
-                print(file.name ,"-FOLDER" ,"PARENT:   " ,parentFolder)
-                traverseFolder(file.iterdir() ,file.name ,subFolderObject ,rootId)
-                # for f in file.iterdir():
-                  
-            else:
-                try:
-                    print("SIZE:::  ",f.stat().st_size)
-                except:
-                    pass
-                if parentFolder == MainParentName:
-                    MainBranchObject = MainBranch.objects.get(id=parentFolderModelObject.id)
-                    fileObject = FolderFiles.objects.create(name=file.name , file=file.read_bytes() ,subBranchId = MainBranchObject.id)
-                    MainBranchObject.files.add(fileObject)
-                    fileObject.save()
-                    MainBranchObject.save()
-                elif parentFolder != MainParentName:
-                    subFolderObject = SubFolder.objects.get(id=parentFolderModelObject.id)
-                    fileObject = FolderFiles.objects.create(name=file.name , file=file.read_bytes() ,subBranchId = subFolderObject.id)
-                    subFolderObject.files.add(fileObject)
-                    fileObject.save()
+    try:
+        global totalSize
+        def traverseFolder(files ,parentFolder ,parentFolderModelObject , rootId , lst):
+            for file in files:
+                sizeLst = [0]
+                if file.is_dir():
+                    subFolderObject = SubFolder.objects.create(name=file.name , mainBranchId = rootId ,SecondaryBranchId = parentFolderModelObject.id)
+                    if MainParentName != parentFolder:
+                        # print(parentFolder ,"--------" ,file.name)
+                        getSubFolderObject = SubFolder.objects.get(id=parentFolderModelObject.id)
+                        # getSubFolderObject.subFolder = subFolderObject
+                        getSubFolderObject.subFolder.add(subFolderObject)
+                        # print(getSubFolderObject.name ,'====' ,subFolderObject.name)
+                        getSubFolderObject.save()
+                    elif MainParentName == parentFolder:
+                        getMainBranchFolderObject = MainBranch.objects.get(id=parentFolderModelObject.id)
+
+                        getMainBranchFolderObject.subFolder.add(subFolderObject)
+                        # print(getMainBranchFolderObject.name ,"~~~~~~~~~~" ,subFolderObject.name)
+                        getMainBranchFolderObject.save()
+                    # parentFolderModelObject.subFolder.add(subFolderObject)
+                    # parentFolderModelObject.save()
+                    # subFolderObject.save()
+                    traverseFolder(file.iterdir() ,file.name ,subFolderObject ,rootId ,sizeLst)
+                    folder_size = sizeLst[0]/(1024*1024)
+                    subFolderObject.size_mb= folder_size
                     subFolderObject.save()
-                print(file.name ,"-FILE")
 
-    
+                    # print(file.name ,"-FOLDER" ,"PARENT:   " ,parentFolder)
+                    
+                    print(subFolderObject.name  ," Total size  =  " ,sizeLst[0])
+                    # for f in file.iterdir():
+                    
+                else:
+                    file_size = 0
+                    try:
+                        with open(file, 'rb') as f:
+                            file_size = f.seek(0, 2)
+                            print(f"The size of {f.name} is {file_size} bytes.")
+                            sizeLst[0] =  sizeLst[0]+file_size
+                            file_size = file_size/(1024*1024)
+                           
+                            # Use entry.stat().st_size to get the file size
+                            # print("SIZE:::  ", file.stat().st_size)
+                    except Exception as e:
+                        print(f"Error processing file {file.name}: {e}")
+                    if parentFolder == MainParentName:
+                        MainBranchObject = MainBranch.objects.get(id=parentFolderModelObject.id)
+                        fileObject = FolderFiles.objects.create(name=file.name , file=file.read_bytes() ,subBranchId = MainBranchObject.id)
+                        
+                        fileObject.size_mb = file_size
+                        MainBranchObject.files.add(fileObject)
+                        fileObject.save()
+                        MainBranchObject.save()
+                    elif parentFolder != MainParentName:
+                        subFolderObject = SubFolder.objects.get(id=parentFolderModelObject.id)
+                        fileObject = FolderFiles.objects.create(name=file.name , file=file.read_bytes() ,subBranchId = subFolderObject.id)
+                        fileObject.size_mb = file_size
+                        subFolderObject.files.add(fileObject)
+                        fileObject.save()
+                        subFolderObject.save()
+                    # print(file.name ,"-FILE")
+                lst[0] = lst[0]+sizeLst[0]
 
-    if request.method == 'POST':
-        # print(get_csrf_token(request))
-        # print(request.POST)
-        # print(request.FILES['name'])
-        # print(request.POST)
-        # print(request.FILES)
-        # print(request.data)
-        zip_file = request.FILES["file"]
-        # zip_file = None
-        folderName = request.POST['name']
-        # temp_Dir = tempfile.TemporaryDirectory()
-        # new_folder_path = os.path.join(temp_Dir.name ,folderName)
+        
 
-        # os.makedirs(temp_Dir.name)
+        if request.method == 'POST':
+            # print(get_csrf_token(request))
+            # print(request.POST)
+            # print(request.FILES['name'])
+            # print(request.POST)
+            # print(request.FILES)
+            # print(request.data)
+            zip_file = request.FILES["file"]
+            folderName = request.POST['name']
 
-        if zip_file:
-            # with open(uploaded_file, 'rb') as zip_file:
-            zip_file_data = zip_file.read()
-            # print(zip_file_data)
-            with tempfile.TemporaryDirectory() as tempDir:
-                new_folder_path = os.path.join(tempDir ,folderName)
-                os.makedirs(new_folder_path)
-                print("NEW PATH:  " ,new_folder_path)
-                with zipfile.ZipFile(io.BytesIO(zip_file_data) ,'r') as zip_file:
-                    zip_file.extractall(new_folder_path)
-                # print("folder name:  " ,temp_path.name)
-                temp_path = Path(tempDir)
-                for f in temp_path.iterdir():
-                    if f.is_dir():
-                        try:
-                            # Open the file and read its content to BytesIO
-                            with open(f, 'rb') as file:
-                                file_content = io.BytesIO(file.read())
-                            
-                            # Get the size of the file content
-                            file_size = file_content.getbuffer().nbytes
-                            print(f"File: {f.name}, Size: {file_size} bytes")
-                        except PermissionError as e:
-                            print(f"PermissionError: {e}")
-                        # print(f.iterdir())
-                        MainParentName = f.name
-                        user = User.objects.get(username=request.data['username'])
-                        mainFolderObject = MainBranch.objects.create(name=f.name ,user=user)
-                        mainFolderObject.save()
-                        traverseFolder(f.iterdir() , f.name ,mainFolderObject , mainFolderObject.id)
-            return Response({"saved":"okay"} ,status=status.HTTP_200_OK)
-        else:
-            print("no file uploaded")
-            return Response({"saved":"no"} , status=status.HTTP_400_BAD_REQUEST)
-    return Response("None")
+
+            if zip_file:
+                # with open(uploaded_file, 'rb') as zip_file:
+                zip_file_data = zip_file.read()
+                # print(zip_file_data)
+                with tempfile.TemporaryDirectory() as tempDir:
+                    new_folder_path = os.path.join(tempDir ,folderName)
+                    os.makedirs(new_folder_path)
+                    # print("NEW PATH:  " ,new_folder_path)
+                    try:
+                        with zipfile.ZipFile(io.BytesIO(zip_file_data) ,'r') as zip_file:
+                            # zip_file.printdir()
+                            zip_file.extractall(new_folder_path)    
+                    except Exception as e:
+                         print(e)
+                    temp_path = Path(tempDir)
+                    # print("folder name:  " ,temp_path.name)
+                    lst = [0]
+                    for f in temp_path.iterdir():
+                        totalSize=0
+                        if f.is_dir():
+                            MainParentName = f.name
+                            user = User.objects.get(username=request.data['username'])
+                            utc_time = timezone.now()
+                            get_time_zone = pytz.timezone("Asia/Calcutta")
+                            user_time_zone = utc_time.replace(tzinfo=pytz.utc).astimezone(get_time_zone)
+                            format_time = user_time_zone.strftime("%Y-%m-%d %H:%M:%S")
+                            mainFolderObject = MainBranch.objects.create(name=f.name ,user=user ,dateInfo=format_time )
+                            traverseFolder(f.iterdir() , f.name ,mainFolderObject , mainFolderObject.id ,lst)
+                            mainFolderObject.size_mb = ((lst[0])/(1024*1024))
+                            mainFolderObject.save()
+                            print(mainFolderObject.name  ,"MainFolder Total size  =  " ,lst[0])
+                        # lst[0] = lst[0]+anotherLst[0]
+                    print(mainFolderObject.name  ,"Final Total size  =  " ,lst[0])   
+                return Response({"saved":"okay"} ,status=status.HTTP_200_OK)
+            else:
+                print("no file uploaded")
+                return Response({"saved":"no"} , status=status.HTTP_400_BAD_REQUEST)
+        return Response({"saved":"no"})
+    except Exception as e:
+        print(e)
+        return Response({"saved":"no"})
 
 
 def sendJson(request):
@@ -242,41 +274,63 @@ def sendJson(request):
     return JsonResponse(json_data ,safe=False)
 
 
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
 def getUserFiles(request):
-    name = "rahul"
-    dict_object = {}
-    getMainBranch = MainBranch.objects.filter(user__username = name)
+    try:
+        name = "rahul"
+        dict_object = {}
+        getMainBranch = MainBranch.objects.filter(user__username = name).order_by("-dateInfo")
 
+        # why is it not working?
+        def addFolderInDict(subFolderObject ,folderName ,dik ,isMain):
+            if isMain:
+                formatTime = subFolderObject.dateInfo.strftime("%Y-%m-%d %H:%M:%S")
+                dik[str(subFolderObject.id)+"_"+folderName+"folder"+"_"+str(formatTime)+"$"+str(subFolderObject.size_mb)] = {}
+            else:
+                dik[str(subFolderObject.id)+"_"+folderName+"folder"+"$"+str(subFolderObject.size_mb)] = {}
+            folderObject = subFolderObject.subFolder.all()
+            fileObject = subFolderObject.files.all()
+            if folderObject != None:
+                for folder in folderObject:
+                    print(folder.name)
+                    if isMain:     
+                        formatTime = subFolderObject.dateInfo.strftime("%Y-%m-%d %H:%M:%S")                   
+                        addFolderInDict(folder ,folder.name ,dik[str(subFolderObject.id)+"_"+folderName+"folder"+"_"+str(formatTime)+"$"+str(subFolderObject.size_mb)] ,False)
+                    else:
+                        addFolderInDict(folder ,folder.name ,dik[str(subFolderObject.id)+"_"+folderName+"folder"+"$"+str(subFolderObject.size_mb)] ,False)
 
-    def addFolderInDict(subFolderObject ,folderName ,dik):
-        dik[str(subFolderObject.id)+"_"+folderName+"folder"] = {}
-        folderObject = subFolderObject.subFolder.all()
-        fileObject = subFolderObject.files.all()
-        if folderObject != None:
-            for folder in folderObject:
-                print(folder.name)
-                addFolderInDict(folder ,folder.name ,dik[str(subFolderObject.id)+"_"+folderName+"folder"])
-        if fileObject != None:
-            count = 0
-            for files in fileObject:
-                dik[str(subFolderObject.id)+"_"+folderName+"folder"]["file"+str(files.id)] = files.name
-                count+=1
-                print(folderName  ,"===",files.name)
+            if fileObject != None:
+                count = 0
+                for files in fileObject:
+                    if isMain:
+                        formatTime = subFolderObject.dateInfo.strftime("%Y-%m-%d %H:%M:%S")
+                        dik[str(subFolderObject.id)+"_"+folderName+"folder"+"_"+str(formatTime)+"$"+str(subFolderObject.size_mb)]["file"+str(files.id)+"$"+str(files.size_mb)] = files.name
+                    else:
+                        dik[str(subFolderObject.id)+"_"+folderName+"folder"+"$"+str(subFolderObject.size_mb)]["file"+str(files.id)+"$"+str(files.size_mb)] = files.name
 
-    index_count = 0
-    dict_object = {}
-    for folders in getMainBranch:
-        # dict_object.update({'type':'folder' ,'name':folders.name})
-        addFolderInDict(folders ,folders.name ,dict_object)
-        index_count += 1
-        # subFolderObject = folders.subFolder.all()
-        # for subFolder in subFolderObject:
-            # print(subFolder.name)
-    # print(getMainBranch)
+                    count+=1
+                    print(folderName  ,"===",files.name)
 
-    print(json.dumps(dict_object ,indent=4))
-    print(len(dict_object))
-    return JsonResponse(dict_object ,safe=False)
+        index_count = 0
+        dict_object = {}
+        for folders in getMainBranch:
+            # dict_object.update({'type':'folder' ,'name':folders.name})
+            addFolderInDict(folders ,folders.name ,dict_object ,True)
+            index_count += 1
+            # subFolderObject = folders.subFolder.all()
+            # for subFolder in subFolderObject:
+                # print(subFolder.name)
+        # print(getMainBranch)
+
+        print(json.dumps(dict_object ,indent=4))
+        print(len(dict_object))
+        return JsonResponse(dict_object ,safe=False)
+    except Exception as error:
+        print(error)
+        return Response("Error")
+        
     # return render(request ,'app/index.html')
 
 
@@ -408,83 +462,87 @@ def home(request):
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def getData(request):
-    
-    def create_folder_structure(folderModel ,parent_folder_path):
-        current_folder_path = os.path.join(parent_folder_path , folderModel.name)
-        os.makedirs(current_folder_path)
-        try:
-            for fileModel in folderModel.files.all():
-                filePath = os.path.join(current_folder_path ,fileModel.name)
-                # print(fileModel.name)
-                with open(filePath ,'wb') as f:
-                    f.write(fileModel.file)
-        except:
-            pass
-        for SubfolderModel in folderModel.subFolder.all():
-            create_folder_structure(SubfolderModel , current_folder_path)
-        # print(current_folder_path)
+    try:
+            
+        def create_folder_structure(folderModel ,parent_folder_path):
+            current_folder_path = os.path.join(parent_folder_path , folderModel.name)
+            os.makedirs(current_folder_path)
+            try:
+                for fileModel in folderModel.files.all():
+                    filePath = os.path.join(current_folder_path ,fileModel.name)
+                    # print(fileModel.name)
+                    with open(filePath ,'wb') as f:
+                        f.write(fileModel.file)
+            except:
+                pass
+            for SubfolderModel in folderModel.subFolder.all():
+                create_folder_structure(SubfolderModel , current_folder_path)
+            # print(current_folder_path)
 
-    def populate_folder_dir(temp_dir_path ,branchType ,fileType ,id):
-        # root_folder_path = os.path.join(temp_dir_path ,'filetosentNew')
-        # os.makedirs(root_folder_path)
-        # os.makedirs(temp_dir_path)
-        if branchType == "mainBranch":
-            for folderModel in MainBranch.objects.filter(id=id):
-                create_folder_structure(folderModel , temp_dir_path)
-        elif branchType == "subBranch":
-            for folderModel in SubFolder.objects.filter(id=id):
-                create_folder_structure(folderModel ,temp_dir_path)
-        elif branchType == "file":
-            file = FolderFiles.objects.get(id=id)
-            filePath = os.path.join(temp_dir_path ,file.name)
-            os.makedirs(filePath)
-            fileWritePath = os.path.join(filePath ,file.name)
-            with open(fileWritePath ,"wb") as f:
-                f.write(file.file)
-    def file_iter(dir_path):
-        print("dir_path:", dir_path)
-        for root ,_ ,files in  os.walk(dir_path):
-            print("Entering os.walk loop")
-            print("Files in this directory:", files)
-            for fileName in files:
-                file_path = os.path.join(root , fileName)
-                print("Processing file:", file_path)
-                with open(file_path , 'rb') as file:
-                    yield FileWrapper(file)
+        def populate_folder_dir(temp_dir_path ,branchType ,fileType ,id):
+            # root_folder_path = os.path.join(temp_dir_path ,'filetosentNew')
+            # os.makedirs(root_folder_path)
+            # os.makedirs(temp_dir_path)
+            if branchType == "mainBranch":
+                for folderModel in MainBranch.objects.filter(id=id):
+                    create_folder_structure(folderModel , temp_dir_path)
+            elif branchType == "subBranch":
+                for folderModel in SubFolder.objects.filter(id=id):
+                    create_folder_structure(folderModel ,temp_dir_path)
+            elif branchType == "file":
+                file = FolderFiles.objects.get(id=id)
+                filePath = os.path.join(temp_dir_path ,file.name)
+                os.makedirs(filePath)
+                fileWritePath = os.path.join(filePath ,file.name)
+                with open(fileWritePath ,"wb") as f:
+                    f.write(file.file)
+        def file_iter(dir_path):
+            print("dir_path:", dir_path)
+            for root ,_ ,files in  os.walk(dir_path):
+                print("Entering os.walk loop")
+                print("Files in this directory:", files)
+                for fileName in files:
+                    file_path = os.path.join(root , fileName)
+                    print("Processing file:", file_path)
+                    with open(file_path , 'rb') as file:
+                        yield FileWrapper(file)
 
-    # if request.method == "GET":
-    #     pass
-    if request.method == "POST":
-        username = request.POST['username']
-        # password = request.POST['password']
+        # if request.method == "GET":
+        #     pass
+        if request.method == "POST":
+            username = request.POST['username']
+            # password = request.POST['password']
 
-        if User.objects.filter(username=username).exists():
-            branchType = request.POST["branchType"]
-            fileType = request.POST["file"]
-            id = int(request.POST["id"])
-            get_temp_dir = tempfile.TemporaryDirectory()
-            populate_folder_dir(get_temp_dir.name ,branchType ,fileType ,id)
-            # response = HttpResponse(FileWrapper(open(get_temp_dir.name)) ,content_type = 'application/octet-stream')
-            # print("heree??")
+            if User.objects.filter(username=username).exists():
+                branchType = request.POST["branchType"]
+                fileType = request.POST["file"]
+                id = int(request.POST["id"])
+                get_temp_dir = tempfile.TemporaryDirectory()
+                populate_folder_dir(get_temp_dir.name ,branchType ,fileType ,id)
+                # response = HttpResponse(FileWrapper(open(get_temp_dir.name)) ,content_type = 'application/octet-stream')
+                # print("heree??")
 
-            zip_filename = get_temp_dir.name + '.zip'
-            shutil.make_archive(get_temp_dir.name, 'zip', get_temp_dir.name)
+                zip_filename = get_temp_dir.name + '.zip'
+                shutil.make_archive(get_temp_dir.name, 'zip', get_temp_dir.name)
 
-            # Open and read the saved zip file
-            with open(zip_filename, 'rb') as zip_file:
-                response = HttpResponse(zip_file.read(), content_type='application/zip')
-            # response = StreamingHttpResponse(file_iter(os.path.join(get_temp_dir.name ,'filetosentNew')) ,content_type = 'application/octet-stream')
-            # print("or here?")
-            response['Content-Disposition'] = f'attachment; filename="your_folder_name.zip"'
-            # def GetFiles():
-            response['Status'] = "Yes"
-            get_temp_dir.cleanup()
-            os.remove(zip_filename)            
+                # Open and read the saved zip file
+                with open(zip_filename, 'rb') as zip_file:
+                    response = HttpResponse(zip_file.read(), content_type='application/zip')
+                # response = StreamingHttpResponse(file_iter(os.path.join(get_temp_dir.name ,'filetosentNew')) ,content_type = 'application/octet-stream')
+                # print("or here?")
+                response['Content-Disposition'] = f'attachment; filename="your_folder_name.zip"'
+                # def GetFiles():
+                response['Status'] = "Yes"
+                get_temp_dir.cleanup()
+                os.remove(zip_filename)            
+                return response
+            
+            response = HttpResponse()
+            response['Status'] = "No"
             return response
         
-        response = HttpResponse()
-        response['Status'] = "No"
-        return response
+    except:
+        pass
     
 @csrf_exempt
 def javaSignIn(request):
