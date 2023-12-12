@@ -279,59 +279,62 @@ def sendJson(request):
 @permission_classes([IsAuthenticated])
 def getUserFiles(request):
     try:
-        name = "rahul"
-        dict_object = {}
-        getMainBranch = MainBranch.objects.filter(user__username = name).order_by("-dateInfo")
+        name = request.POST['username']
+        user_object = User.objects.filter(username=name)
+        if user_object.exists():
+            print(request.POST['username'] ,"username over here!")
+            dict_object = {}
+            getMainBranch = MainBranch.objects.filter(user__username = name).order_by("-dateInfo")
 
-        # why is it not working?
-        def addFolderInDict(subFolderObject ,folderName ,dik ,isMain):
-            if isMain:
-                formatTime = subFolderObject.dateInfo.strftime("%Y-%m-%d %H:%M:%S")
-                dik[str(subFolderObject.id)+"_"+folderName+"folder"+"_"+str(formatTime)+"$"+str(subFolderObject.size_mb)] = {}
-            else:
-                dik[str(subFolderObject.id)+"_"+folderName+"folder"+"$"+str(subFolderObject.size_mb)] = {}
-            folderObject = subFolderObject.subFolder.all()
-            fileObject = subFolderObject.files.all()
-            if folderObject != None:
-                for folder in folderObject:
-                    print(folder.name)
-                    if isMain:     
-                        formatTime = subFolderObject.dateInfo.strftime("%Y-%m-%d %H:%M:%S")                   
-                        addFolderInDict(folder ,folder.name ,dik[str(subFolderObject.id)+"_"+folderName+"folder"+"_"+str(formatTime)+"$"+str(subFolderObject.size_mb)] ,False)
-                    else:
-                        addFolderInDict(folder ,folder.name ,dik[str(subFolderObject.id)+"_"+folderName+"folder"+"$"+str(subFolderObject.size_mb)] ,False)
+            # why is it not working?
+            def addFolderInDict(subFolderObject ,folderName ,dik ,isMain):
+                if isMain:
+                    formatTime = subFolderObject.dateInfo.strftime("%Y-%m-%d %H:%M:%S")
+                    dik[str(subFolderObject.id)+"_"+folderName+"folder"+"_"+str(formatTime)+"$"+str(subFolderObject.size_mb)] = {}
+                else:
+                    dik[str(subFolderObject.id)+"_"+folderName+"folder"+"$"+str(subFolderObject.size_mb)] = {}
+                folderObject = subFolderObject.subFolder.all()
+                fileObject = subFolderObject.files.all()
+                if folderObject != None:
+                    for folder in folderObject:
+                        print(folder.name)
+                        if isMain:     
+                            formatTime = subFolderObject.dateInfo.strftime("%Y-%m-%d %H:%M:%S")                   
+                            addFolderInDict(folder ,folder.name ,dik[str(subFolderObject.id)+"_"+folderName+"folder"+"_"+str(formatTime)+"$"+str(subFolderObject.size_mb)] ,False)
+                        else:
+                            addFolderInDict(folder ,folder.name ,dik[str(subFolderObject.id)+"_"+folderName+"folder"+"$"+str(subFolderObject.size_mb)] ,False)
 
-            if fileObject != None:
-                count = 0
-                for files in fileObject:
-                    if isMain:
-                        formatTime = subFolderObject.dateInfo.strftime("%Y-%m-%d %H:%M:%S")
-                        dik[str(subFolderObject.id)+"_"+folderName+"folder"+"_"+str(formatTime)+"$"+str(subFolderObject.size_mb)]["file"+str(files.id)+"$"+str(files.size_mb)] = files.name
-                    else:
-                        dik[str(subFolderObject.id)+"_"+folderName+"folder"+"$"+str(subFolderObject.size_mb)]["file"+str(files.id)+"$"+str(files.size_mb)] = files.name
+                if fileObject != None:
+                    count = 0
+                    for files in fileObject:
+                        if isMain:
+                            formatTime = subFolderObject.dateInfo.strftime("%Y-%m-%d %H:%M:%S")
+                            dik[str(subFolderObject.id)+"_"+folderName+"folder"+"_"+str(formatTime)+"$"+str(subFolderObject.size_mb)]["file"+str(files.id)+"$"+str(files.size_mb)] = files.name
+                        else:
+                            dik[str(subFolderObject.id)+"_"+folderName+"folder"+"$"+str(subFolderObject.size_mb)]["file"+str(files.id)+"$"+str(files.size_mb)] = files.name
 
-                    count+=1
-                    print(folderName  ,"===",files.name)
+                        count+=1
+                        print(folderName  ,"===",files.name)
 
-        index_count = 0
-        dict_object = {}
-        for folders in getMainBranch:
-            # dict_object.update({'type':'folder' ,'name':folders.name})
-            addFolderInDict(folders ,folders.name ,dict_object ,True)
-            index_count += 1
-            # subFolderObject = folders.subFolder.all()
-            # for subFolder in subFolderObject:
-                # print(subFolder.name)
-        # print(getMainBranch)
+            index_count = 0
+            dict_object = {}
+            for folders in getMainBranch:
+                # dict_object.update({'type':'folder' ,'name':folders.name})
+                addFolderInDict(folders ,folders.name ,dict_object ,True)
+                index_count += 1
+                # subFolderObject = folders.subFolder.all()
+                # for subFolder in subFolderObject:
+                    # print(subFolder.name)
+            # print(getMainBranch)
 
-        print(json.dumps(dict_object ,indent=4))
-        print(len(dict_object))
-        return JsonResponse(dict_object ,safe=False)
+            print(json.dumps(dict_object ,indent=4))
+            print(len(dict_object))
+            return JsonResponse(dict_object ,safe=False)
+        else:
+            return Response("Error")    
     except Exception as error:
         print(error)
         return Response("Error")
-        
-    # return render(request ,'app/index.html')
 
 
 
