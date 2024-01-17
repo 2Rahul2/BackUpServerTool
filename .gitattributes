@@ -1,0 +1,1 @@
+app/media/updata_setup.exe filter=lfs diff=lfs merge=lfs -text
