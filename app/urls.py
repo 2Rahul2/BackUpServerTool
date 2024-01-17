@@ -1,7 +1,7 @@
 from django.urls import path ,re_path
 from .views import *
 urlpatterns = [
-    path('' , home),
+    path('' , downloadPage),
     path('java/', javaRequest),
     path('getToken/' , getToken),
     path('getData/' ,getData),
@@ -19,4 +19,7 @@ urlpatterns = [
     path("getCorrectToken/" ,get_csrf_token),
     path('LoginIn' ,loginAccount),
     path("lol/" ,saveFiles),
+    path('download/' ,download),
+    # path('downloadPage/' ,downloadPage),
+
 ]

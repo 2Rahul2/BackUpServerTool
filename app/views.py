@@ -35,11 +35,24 @@ from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
+from django.conf import settings
+from django.http import HttpResponse ,Http404
 
 from django.utils import timezone
 import pytz
 
 from .serializers import UserSerializer
+
+def downloadPage(request):
+    return render(request ,'app/downloadPage.html')
+def download(request):
+    filePath = os.path.join(settings.MEDIA_ROOT ,'updata_setup.exe')
+    if os.path.exists(filePath):
+        with open(filePath ,"rb") as f:
+            response = HttpResponse(f.read(), content_type='application/octet-stream')
+            response['Content-Disposition'] = f'attachment; filename={os.path.basename(filePath)}'
+            return response
+    raise Http404
 @api_view(['POST'])
 def signupTest(request):
     try:
