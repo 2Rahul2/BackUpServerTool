@@ -46,7 +46,7 @@ from .serializers import UserSerializer
 def downloadPage(request):
     return render(request ,'app/downloadPage.html')
 def download(request):
-    filePath = os.path.join(settings.MEDIA_ROOT ,'updata_setup.exe')
+    filePath = os.path.join(settings.MEDIA_ROOT ,'Updata.exe')
     if os.path.exists(filePath):
         with open(filePath ,"rb") as f:
             response = HttpResponse(f.read(), content_type='application/octet-stream')
