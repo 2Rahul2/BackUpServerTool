@@ -98,7 +98,7 @@ WSGI_APPLICATION = 'file_sharing.wsgi.application'
 # }
 
 DATABASES = {
-    'default': dj_database_url.parse("postgres://updata_user:lFTUkxWzCyXDT8zKOkRgBuxTFCIEqttL@dpg-coegnfgl5elc73884590-a.singapore-postgres.render.com/updata")
+    'default': dj_database_url.parse(os.environ.get("DATABASE_URL"))
 }
 
 # Password validation
