@@ -98,8 +98,34 @@ WSGI_APPLICATION = 'file_sharing.wsgi.application'
 # }
 
 DATABASES = {
-    'default': dj_database_url.parse(os.environ.get("DATABASE_URL"))
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'koyebdb',
+        'USER': 'koyeb-adm',
+        'PASSWORD': 'f31GdNAelCiM',
+        'HOST': 'ep-shy-queen-a1zaabe9.ap-southeast-1.pg.koyeb.app',
+        'PORT': '5432',
+        'OPTIONS': {
+            'sslmode': 'require',
+            'options': 'endpoint=ep-shy-queen-a1zaabe9'
+        },
+    }
 }
+
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'koyebdb',
+#         'USER': 'koyeb-adm',
+#         'PASSWORD': 'f31GdNAelCiM',
+#         'HOST': 'ep-shy-queen-a1zaabe9.ap-southeast-1.pg.koyeb.app',
+#         'OPTIONS': {'sslmode': 'require'},
+#     }
+# }
+# DATABASES = {
+#     'default': dj_database_url.parse(os.environ.get("DATABASE_URL"))
+# }
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
